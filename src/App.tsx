@@ -1,3 +1,5 @@
+import WeatherRadar from './components/WeatherRadar';
+
 export default function App() {
   return (
     <>
@@ -36,11 +38,13 @@ export default function App() {
               <span className="app-desc">Capital Management</span>
             </div>
           </div>
-
-          <footer>
-            &copy; 2026 YCOM &bull; ALL SYSTEMS OPERATIONAL
-          </footer>
         </section>
+
+        <WeatherRadar />
+
+        <footer style={{ textAlign: 'center', marginTop: '2rem' }}>
+          &copy; 2026 YCOM &bull; ALL SYSTEMS OPERATIONAL
+        </footer>
       </main>
     </>
   );

@@ -5,8 +5,11 @@ import { createRoot } from 'react-dom/client'
 
 import App from './App'
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+const mountPoint = document.getElementById('jwcu-weather-hub-root') || document.getElementById('root');
+if (mountPoint) {
+  createRoot(mountPoint).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  );
+}
