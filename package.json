@@ -1,0 +1,28 @@
+{
+  "name": "ycom",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "npm run dev",
+    "stop": "npx --no-install kill-port 5173 *>$null",
+    "status": "npm run _status -s",
+    "_status": "node --no-warnings -e \"const net=require('net');const c=p=>new Promise(r=>{const s=new net.Socket();s.setTimeout(500);s.on('connect',()=>{s.destroy();r(1)}).on('error',()=>{r(0)}).on('timeout',()=>{s.destroy();r(0)}).connect(p,'127.0.0.1')});c(5173).then(f=>console.log(f?'\\x1b[32m[+] Frontend (5173) is RUNNING.\\x1b[0m':'\\x1b[31m[-] System is OFFLINE.\\x1b[0m'))\"",
+    "dev": "vite --host",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
+    "kill-port": "^2.0.1",
+    "typescript": "^6.0.2",
+    "vite": "^7.3.1"
+  }
+}
