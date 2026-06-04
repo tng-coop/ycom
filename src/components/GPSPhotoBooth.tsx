@@ -5,7 +5,6 @@ import {
   MapPin, 
   Download, 
   Trash, 
-  RefreshCw, 
   Upload, 
   X, 
   Check, 
@@ -26,18 +25,11 @@ interface CapturedPhoto {
 }
 
 export default function GPSPhotoBooth() {
-  // Video and Canvas refs
-  const videoRef = useRef<HTMLVideoElement>(null);
+  // Map refs
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markerRef = useRef<L.Marker | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
 
-  // States
-  const [cameraActive, setCameraActive] = useState<boolean>(false);
-  const [cameraLoading, setCameraLoading] = useState<boolean>(false);
-  const [cameraError, setCameraError] = useState<string | null>(null);
-  
   // Geolocation states
   const [locationStatus, setLocationStatus] = useState<'searching' | 'locked' | 'error' | 'denied'>('searching');
   const [gpsCoords, setGpsCoords] = useState<GeolocationCoordinates | null>(null);
@@ -93,81 +85,7 @@ export default function GPSPhotoBooth() {
     };
   }, []);
 
-  // Initialize and update camera stream
-  const startCamera = async () => {
-    setCameraLoading(true);
-    setCameraError(null);
-
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setCameraActive(false);
-      setCameraError("Security restriction: Camera access is blocked because the connection is insecure. Please access the app using localhost (http://localhost:5173) or set up HTTPS.");
-      setCameraLoading(false);
-      return;
-    }
-
-    try {
-      // Clean up previous stream if any
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(t => t.stop());
-      }
-
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
-        audio: false
-      });
-      
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        setCameraActive(true);
-      }
-    } catch (err: any) {
-      console.error("Camera connection failed:", err);
-      setCameraActive(false);
-      setCameraError(err.message || 'Could not access camera. Please use file upload fallback.');
-    } finally {
-      setCameraLoading(false);
-    }
-  };
-
-  const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(t => t.stop());
-      streamRef.current = null;
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-    setCameraActive(false);
-  };
-
-  // Start camera on mount
-  useEffect(() => {
-    startCamera();
-    return () => stopCamera();
-  }, []);
-
-  // Shutter action
-  const capturePhoto = () => {
-    if (!videoRef.current) return;
-    const video = videoRef.current;
-    
-    // Create canvas matching video resolution
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
-    
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    
-    // Draw the current video frame
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
-    
-    processPhotoData(dataUrl);
-  };
-
-  // File Upload fallback
+  // File and Camera upload handler
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -180,6 +98,9 @@ export default function GPSPhotoBooth() {
       }
     };
     reader.readAsDataURL(file);
+    
+    // Clear input value so same file can be selected again
+    e.target.value = '';
   };
 
   // Common photo processor (EXIF injector)
@@ -273,7 +194,6 @@ export default function GPSPhotoBooth() {
   // Trigger File Download
   const downloadPhoto = (photo: CapturedPhoto) => {
     const link = document.createElement('a');
-    // Format timestamp: YYYYMMDD_HHMMSS
     const pad = (n: number) => String(n).padStart(2, '0');
     const dateStr = photo.timestamp.getFullYear() + 
       pad(photo.timestamp.getMonth() + 1) + 
@@ -316,71 +236,42 @@ export default function GPSPhotoBooth() {
         {/* LEFT COLUMN: VIEWPORT OR ACTIVE REVIEW */}
         <div className="radar-map-column">
           {!activePhoto ? (
-            /* CAMERA VIEWPORT MODE */
+            /* PHOTO CAPTURE OPTIONS VIEW */
             <div className="map-wrapper camera-viewport-wrapper">
-              {cameraActive ? (
-                <>
-                  <video 
-                    ref={videoRef} 
-                    autoPlay 
-                    playsInline 
-                    muted 
-                    className="camera-video-element"
-                  />
-                  {/* Viewfinder crosshairs overlay */}
-                  <div className="camera-viewfinder-grid">
-                    <div className="viewfinder-crosshair"></div>
-                    <div className="viewfinder-lens"></div>
+              <div className="camera-offline-state">
+                <div className="camera-placeholder-box">
+                  <ImageIcon className="w-16 h-16 text-blue-400/80 mb-2" />
+                  <h4>Ready to Capture</h4>
+                  <p className="text-gray-400 text-xs max-w-sm mb-6">
+                    Take a new photo or select one from your library. Your active GPS coordinates will be welded into the image headers.
+                  </p>
+                  
+                  <div className="action-buttons-row">
+                    <label className="play-btn upload-btn-fallback" style={{ cursor: 'pointer' }}>
+                      <Camera className="w-4 h-4 mr-2" />
+                      Take Photo
+                      <input 
+                        type="file" 
+                        accept="image/jpeg,image/jpg" 
+                        capture="environment" 
+                        onChange={handleFileUpload} 
+                        style={{ display: 'none' }}
+                      />
+                    </label>
+                    
+                    <label className="play-btn secondary-btn" style={{ cursor: 'pointer' }}>
+                      <Upload className="w-4 h-4 mr-2" />
+                      Upload / Select File
+                      <input 
+                        type="file" 
+                        accept="image/jpeg,image/jpg" 
+                        onChange={handleFileUpload} 
+                        style={{ display: 'none' }}
+                      />
+                    </label>
                   </div>
-
-                  {/* Camera control Overlay HUD */}
-                  <div className="camera-viewport-hud">
-                    <button onClick={capturePhoto} className="shutter-btn" title="Take GPS Photo">
-                      <div className="shutter-inner">
-                        <Camera className="w-6 h-6 text-white" />
-                      </div>
-                    </button>
-                    <button onClick={stopCamera} className="camera-toggle-btn secondary-hud-btn" title="Turn Camera Off">
-                      Stop Stream
-                    </button>
-                  </div>
-                </>
-              ) : (
-                /* CAMERA OFFLINE STATE */
-                <div className="camera-offline-state">
-                  {cameraLoading ? (
-                    <div className="loader-box">
-                      <RefreshCw className="w-8 h-8 spinning text-blue-500" />
-                      <span>Initializing Camera Sensor...</span>
-                    </div>
-                  ) : (
-                    <div className="camera-placeholder-box">
-                      <ImageIcon className="w-16 h-16 text-gray-600 mb-2" />
-                      <h4>Camera Feed Offline</h4>
-                      <p className="text-gray-400 text-xs max-w-sm mb-4">
-                        {cameraError ? cameraError : "Camera stream is turned off or unsupported by your device/browser."}
-                      </p>
-                      <div className="action-buttons-row">
-                        <button onClick={startCamera} className="play-btn">
-                          <Camera className="w-4 h-4 fill-current mr-2" />
-                          Start Camera
-                        </button>
-                        
-                        <label className="play-btn upload-btn-fallback">
-                          <Upload className="w-4 h-4 mr-2" />
-                          Upload JPEG File
-                          <input 
-                            type="file" 
-                            accept="image/jpeg,image/jpg" 
-                            onChange={handleFileUpload} 
-                            style={{ display: 'none' }}
-                          />
-                        </label>
-                      </div>
-                    </div>
-                  )}
                 </div>
-              )}
+              </div>
             </div>
           ) : (
             /* PHOTO REVIEW MODE */
@@ -411,7 +302,7 @@ export default function GPSPhotoBooth() {
                 Download GPS JPEG
               </button>
               <button onClick={() => setActivePhoto(null)} className="play-btn secondary-btn">
-                Return to Viewfinder
+                Return
               </button>
               <button onClick={() => deletePhoto(activePhoto.id)} className="play-btn danger-btn">
                 <Trash className="w-4 h-4 mr-2" />
@@ -571,10 +462,10 @@ export default function GPSPhotoBooth() {
                 <span className="card-label">METADATA DISCOVERY</span>
               </div>
               <p className="instruction-text">
-                When you click the shutter, this web application generates a JPEG client-side, reads its binary content, structures a TIFF/EXIF block representing your location, and welds the bytes together.
+                When you take a photo or select an image file, this web utility reads its binary contents, embeds high-fidelity TIFF/EXIF location tags, and welds the bytes together directly in your browser.
               </p>
               <p className="instruction-text font-semibold text-blue-300">
-                Download the JPEG and check it on your device's native Gallery, Lightroom, or Photoshop. The physical coordinates will immediately map on any global satellite software.
+                The GPS coordinates reside completely inside the file, maintaining 100% privacy with zero databases or backend processing.
               </p>
             </div>
           )}
