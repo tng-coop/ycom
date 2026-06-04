@@ -94,7 +94,31 @@ export default function GPSPhotoBooth() {
     reader.onload = (event) => {
       const dataUrl = event.target?.result as string;
       if (dataUrl) {
-        processPhotoData(dataUrl);
+        // Load the image to convert it to JPEG via Canvas (handles PNG/WebP/HEIC fallbacks)
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.naturalWidth || img.width;
+          canvas.height = img.naturalHeight || img.height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0);
+            try {
+              const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.9);
+              processPhotoData(jpegDataUrl);
+            } catch (canvasErr) {
+              console.error("Canvas toDataURL failed, using raw dataUrl:", canvasErr);
+              processPhotoData(dataUrl);
+            }
+          } else {
+            processPhotoData(dataUrl);
+          }
+        };
+        img.onerror = () => {
+          console.error("Failed to load image element, attempting direct processing");
+          processPhotoData(dataUrl);
+        };
+        img.src = dataUrl;
       }
     };
     reader.readAsDataURL(file);
